@@ -1,0 +1,151 @@
+import maya.cmds as cmds
+import os
+
+def UI():
+
+	#check to see if our window exists
+	if cmds.window("exampleUI", exists = True):
+		cmds.deleteUI("exampleUI")
+
+	#create window
+	window = cmds.window("exampleUI", title = "Mr. KeyFrames", w = 300, h = 500, mnb = False, mxb = False, sizeable = True)
+
+	#create a main layout
+	mainLayout = cmds.columnLayout(w = 30, h = 30)
+
+	#banner image
+	imagePath = cmds.internalVar(upd = True) + "icons/mrkeyframes3.jpg"
+	cmds.image(w = 200, h = 130, image = imagePath)
+	
+	#create the alpha_omega_kf button
+	cmds.separator(h = 15)
+	cmds.button(label = "Insert Alpha / Omega KF's", w = 200, h = 50, c = alpha_omega_kf)
+
+	#create the fix_cycle button
+	cmds.separator(h = 15)
+	cmds.button(label = "Fix KF Cycle", w = 200, h = 50, c = fix_cycle)
+
+	#create the normalize button
+	cmds.separator(h = 15)
+	cmds.button(label = "Normalize KF Range", w = 200, h = 50, c = normalize_keyframes)
+
+	#create the normalize button
+	cmds.separator(h = 15)
+	cmds.button(label = "Delete KF Range", w = 200, h = 50, c = delete_frame_range)
+	
+	#create the copy keyframe button
+	cmds.separator(h = 15)
+	cmds.button(label = "Copy KF Range", w = 200, h = 50, c = copy_frame_range)
+	
+	#show window
+	cmds.showWindow(window)
+	
+#INTEGER PROMPT BOX
+#generic prompt for user input of an integer
+def int_prompt(p_title, p_message):
+    #prompt user for an integer
+    result = cmds.promptDialog(title = p_title, message = p_message, button=['OK', 'Cancel'], defaultButton='OK', cancelButton='Cancel', dismissString='Cancel')
+    if result == 'OK':
+        #if user presses OK, try to convert entry into an int
+        final_frame = int(cmds.promptDialog(query=True, text=True))
+    else:
+        #if not an int, cancel the process
+        raise ValueError('Cancel')
+    return final_frame
+
+#INSERT ALPHA AND OMEGA KEYFRAMES
+#Easily insert a beginning and end keyframe
+def alpha_omega_kf(*args):
+    try:
+        #prompt user input on where to place the final keyframe
+        final_frame = int_prompt('Alpha Omega Keyframes', 'Enter Final Frame Number:') 
+        #user selects which object(s) he would like to add keyframe for
+        selection = cmds.ls(sl=True)
+        #move time sllider to final keyframe
+        cmds.currentTime( final_frame, update=True, edit=True )
+        for object in selection:
+            #set a final keyframe
+            final_frame = cmds.findKeyframe(selection, which='last')
+            cmds.setKeyframe(object)
+            #set a beginning keyframe at frame 1
+            cmds.setKeyframe(object, time=(1,1))
+    except ValueError:
+        print "Cancelled"
+
+#FIX KEYFRAME (BEGIN AND END) CYCLE   
+#Smooths out transition from final keyframe to first keyframe in a repeating cycle (i.e. walk run cycle), whem playback is looping
+def fix_cycle(*args):  
+    try:  
+        #user input
+        final_frame = int_prompt('Fix KeyFrame Cycle', 'Enter Final Frame Number:')
+        frame_adjust = int_prompt('Fix KeyFrame Cycle', 'Enter Keyframe Adjustment Number (default is 2):')
+        #mouse select the object(s)
+        selection = cmds.ls(sl=True)
+        #go to final frame
+        cmds.currentTime(final_frame, update=True, edit=True)   
+        for object in selection:
+            #create keyframe at frame 2
+            cmds.setKeyframe(object, time=(2,2), insert=True)
+            #slow down  movement by adding an additional keyframe
+            cmds.setKeyframe(object, time=(frame_adjust, frame_adjust), insert=True)
+            #copy keyframe at frame 1
+            cmds.copyKey(object, time=(1,1))
+            #paste keyframe to final frame
+            cmds.pasteKey(object, time=(final_frame,final_frame))
+            #remove keyframe at frame 1 
+            cmds.cutKey(object, time=(1,1))
+            #move frame 2 keyframe to frame 1 location
+            cmds.keyframe(timeChange=1,time=(2,2))
+    except ValueError:
+        print "Cancelled"
+
+#NORMALIZE KEYFRAMES
+#This is a usefule tool for adjusting keyframe intervals to be more consistent (i.e. every 2,3,4,5 frames have 1 key frame)
+def normalize_keyframes(*args):
+    try:
+        #user input
+        start = int_prompt('Normalize KeyFrames', 'Begin at frame number:')
+        end = int_prompt('Normalize KeyFrames', 'End at frame number:') + 1
+        frames = int_prompt('Normalize KeyFrames', 'Create 1 keyframe for every _ frames')     
+        selection = cmds.ls(sl=True)
+        all_frames = range(start,end)
+        #insert a key frame at at frame
+        for object in selection:
+            cmds.setKeyframe(object, time = all_frames, insert=True)
+        #specifies which frames we will want to keep based on user input
+        keep_frames = all_frames[::frames]
+        #specifies which frames we want to remove based on user inpur
+        subtract_frames = [x for x in all_frames if x not in keep_frames]
+        #remove unwanted keyframes
+        for frame in subtract_frames:
+            cmds.cutKey( object, time = (frame,frame) )
+    except ValueError:
+        print "Cancelled"
+
+
+#DELETE KEYFRAME RANGE                
+def delete_frame_range(*args):
+    try:
+        #user inputs from frame ___ to frame ___, I want to remove these keyframes
+        start = int_prompt('Delete KeyFrame Range', 'Begin at frame number:')
+        end = int_prompt('Delete KeyFrame Range', 'End at frame number:') + 1
+        selection = cmds.ls(sl=True)
+        #remove the keyframes
+        for object in selection:
+            cmds.cutKey( object, time = (start,end) )
+    except ValueError:
+        print "Cancelled"
+
+#COPY KEYFRAME RANGE        
+def copy_frame_range(*args):
+    try:
+        #user inputs from frame ___ to frame ___, I want to copy these keyframes
+        start = int_prompt('Copy KeyFrame Range', 'Begin at frame number:')
+        end = int_prompt('Copy KeyFrame Range', 'End at frame number:') + 1
+        selection = cmds.ls(sl=True)
+        #copy the keyframes
+        for object in selection:
+            cmds.copyKey( object, time = (start,end) )
+    except ValueError:
+        print "Cancelled"
+
